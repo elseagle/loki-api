@@ -1,10 +1,11 @@
 from flask import Flask, jsonify
 from flask import request
-from predict import predict
+from .predict import predict
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from flask_socketio import SocketIO, emit
+from pandas import to_datetime as td
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = ''
@@ -35,20 +36,24 @@ class PredictionSchema(ma.Schema):
 predictions_schema = PredictionSchema(many=True)
 
 
-@socketio.on('predict')
-def realtime_prediction(timestamp, image):
+@app.route('/v1/loki', methods=["POST"])
+def realtime_prediction():
+    if request.method == 'POST':
+        timestamp = td(request.form['timestamp'])
+        image = request.files['image']
 
-    timestamp = request.form['timestamp']
-    image = request.files['image']
+        prediction = predict(image).tolist()[0]
 
-    prediction = predict(image).tolist()[0]
+        p = Prediction(timestamp=timestamp, prediction=prediction)
 
-    p = Prediction(timestamp=timestamp, prediction=prediction)
+        db.session.add(p)
+        db.session.commit()
+        db.session.close()
+        return jsonify({"message": "Prediction successful"}), 200
 
-    db.session.add(p)
-    db.session.commit()
-    db.session.close()
 
+@socketio.on('predictions')
+def get_predictions():
     all_predictions = Prediction.query.all()
     result = predictions_schema.dump(all_predictions)
 
@@ -58,6 +63,5 @@ def realtime_prediction(timestamp, image):
 db.create_all()
 
 if __name__ == "__main__":
-    
     # specify thread as false b/c of tf compatibility while running flask: flask run --without-threads
     socketio.run(app)
