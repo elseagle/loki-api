@@ -1,13 +1,15 @@
 from flask import Flask, jsonify
 from flask import request
-from .predict import predict
+from predict import predict
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///airsynq.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = ''
 
+socketio = SocketIO(app)
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
 migrate = Migrate(app, db)
@@ -33,27 +35,24 @@ class PredictionSchema(ma.Schema):
 predictions_schema = PredictionSchema(many=True)
 
 
-@app.route('/benchmark/v1', methods=['GET', 'POST'])
-def realtime_prediction():
-    if request.method == 'POST':
+@socketio.on('predict')
+def realtime_prediction(timestamp, image):
 
-        timestamp = request.form['timestamp']
-        image = request.files['image']
+    timestamp = request.form['timestamp']
+    image = request.files['image']
 
-        prediction = predict(image).tolist()[0]
+    prediction = predict(image).tolist()[0]
 
-        p = Prediction(timestamp=timestamp, prediction=prediction)
+    p = Prediction(timestamp=timestamp, prediction=prediction)
 
-        db.session.add(p)
-        db.session.commit()
-        db.session.close()
-
-        return jsonify({"message": "Image received.", "timestamp": timestamp}), 200
+    db.session.add(p)
+    db.session.commit()
+    db.session.close()
 
     all_predictions = Prediction.query.all()
     result = predictions_schema.dump(all_predictions)
 
-    return jsonify(result)
+    emit('response', jsonify(result), broadcast=True)
 
 
 db.create_all()
@@ -61,4 +60,4 @@ db.create_all()
 if __name__ == "__main__":
     
     # specify thread as false b/c of tf compatibility while running flask: flask run --without-threads
-    app.run(threaded=False)
+    socketio.run(app)
