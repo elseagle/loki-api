@@ -36,7 +36,7 @@ class PredictionSchema(ma.Schema):
 predictions_schema = PredictionSchema(many=True)
 
 
-@app.route('/v1/loki', methods=["POST"])
+@app.route('/loki/v1', methods=["POST"])
 def realtime_prediction():
     if request.method == 'POST':
         timestamp = td(request.form['timestamp'])
