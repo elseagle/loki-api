@@ -1,0 +1,6 @@
+venv/
+.vscode/
+.idea/
+migrations/
+airsynq.db
+__pycache__/
