@@ -4,6 +4,7 @@ from .predict import predict
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
+from pandas import to_datetime as td
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = ''
@@ -37,7 +38,7 @@ predictions_schema = PredictionSchema(many=True)
 def realtime_prediction():
     if request.method == 'POST':
 
-        timestamp = request.form['timestamp']
+        timestamp = td(request.form['timestamp'])
         image = request.files['image']
 
         prediction = predict(image).tolist()[0]
