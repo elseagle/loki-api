@@ -1,14 +1,15 @@
 from flask import Flask, jsonify
 from flask import request
-from .predict import predict
-from flask_migrate import Migrate
-from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
+from flask_migrate import Migrate
 from flask_socketio import SocketIO, emit
+from flask_sqlalchemy import SQLAlchemy
 from pandas import to_datetime as td
 
+from .predict import predict
+
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = ''
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///airsynq.db'
 
 socketio = SocketIO(app)
 db = SQLAlchemy(app)
@@ -36,7 +37,7 @@ class PredictionSchema(ma.Schema):
 predictions_schema = PredictionSchema(many=True)
 
 
-@app.route('/loki/v1', methods=["POST"])
+@app.route('/v1.0/loki', methods=["POST"])
 def realtime_prediction():
     if request.method == 'POST':
         timestamp = td(request.form['timestamp'])
@@ -49,15 +50,15 @@ def realtime_prediction():
         db.session.add(p)
         db.session.commit()
         db.session.close()
-        return jsonify({"message": "Prediction successful"}), 200
 
+        @socketio.on('predictions')
+        def get_predictions():
+            all_predictions = Prediction.query.all()
+            result = predictions_schema.dump(all_predictions)
 
-@socketio.on('predictions')
-def get_predictions():
-    all_predictions = Prediction.query.all()
-    result = predictions_schema.dump(all_predictions)
+            emit('response', jsonify({"prediction": result, "timestamp": timestamp}), broadcast=True)
 
-    emit('response', jsonify(result), broadcast=True)
+        return jsonify({"message": "Prediction Successful"}), 201
 
 
 db.create_all()

@@ -4,3 +4,4 @@ venv/
 migrations/
 airsynq.db
 __pycache__/
+.env
